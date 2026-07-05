@@ -216,18 +216,37 @@ func (l *ListInfo) Flatten(lm *ListInfoMap) error {
 					}
 
 				default:
-					for attr, domainList := range includedList.AttributeRuleListMap {
-						// If there are more than one attribute attached to the rule,
-						// the attribute key of AttributeRuleListMap in ListInfo
-						// will be like: "@cn@ads".
-						// So if to extract rules with a specific attribute, it is necessary
-						// also to test the multi-attribute keys of AttributeRuleListMap.
-						// Notice: if "include:google @cn" and "include:google @ads" appear
-						// at the same time in the parent list. There are chances that the same
-						// rule with that two attributes(`@cn` and `@ads`) will be included twice in the parent list.
-						if strings.Contains(string(attr)+"@", string(attrWanted)+"@") {
-							l.AttributeRuleListMap[attr] = append(l.AttributeRuleListMap[attr], domainList...)
-							l.AttributeRuleUniqueList = append(l.AttributeRuleUniqueList, domainList...)
+					attrWantedStr := string(attrWanted)
+					if strings.HasPrefix(attrWantedStr, "@-") {
+						// Ban attribute: include ALL entries EXCEPT those with the banned attribute.
+						// e.g. "include:boc @-!cn" means "include everything from BOC, but exclude
+						// entries that have the !cn attribute".
+						banAttr := attribute("@" + attrWantedStr[2:]) // "@-!cn" → "@!cn"
+						l.FullTypeList = append(l.FullTypeList, includedList.FullTypeList...)
+						l.DomainTypeList = append(l.DomainTypeList, includedList.DomainTypeList...)
+						l.KeywordTypeList = append(l.KeywordTypeList, includedList.KeywordTypeList...)
+						l.RegexpTypeList = append(l.RegexpTypeList, includedList.RegexpTypeList...)
+						for attr, domainList := range includedList.AttributeRuleListMap {
+							if !strings.Contains(string(attr)+"@", string(banAttr)+"@") {
+								l.AttributeRuleListMap[attr] = append(l.AttributeRuleListMap[attr], domainList...)
+								l.AttributeRuleUniqueList = append(l.AttributeRuleUniqueList, domainList...)
+							}
+						}
+					} else {
+						// Must-have attribute: only include entries that have the specified attribute.
+						for attr, domainList := range includedList.AttributeRuleListMap {
+							// If there are more than one attribute attached to the rule,
+							// the attribute key of AttributeRuleListMap in ListInfo
+							// will be like: "@cn@ads".
+							// So if to extract rules with a specific attribute, it is necessary
+							// also to test the multi-attribute keys of AttributeRuleListMap.
+							// Notice: if "include:google @cn" and "include:google @ads" appear
+							// at the same time in the parent list. There are chances that the same
+							// rule with that two attributes(`@cn` and `@ads`) will be included twice in the parent list.
+							if strings.Contains(string(attr)+"@", attrWantedStr+"@") {
+								l.AttributeRuleListMap[attr] = append(l.AttributeRuleListMap[attr], domainList...)
+								l.AttributeRuleUniqueList = append(l.AttributeRuleUniqueList, domainList...)
+							}
 						}
 					}
 				}
